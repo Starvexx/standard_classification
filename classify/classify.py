@@ -27,6 +27,10 @@ class star:
         self.fluxNames = []
         self.fluxErrNames = []
         self.lambdaNames = []
+
+        # Get the names of the different columns holding the relevant data.
+        # To compute the alpha index we need all coumns containing flux,
+        # flux errors, as well as their respective wavelengths lambda
         for name in self.__data.colnames[4::]:
             if (name[-4::] == 'flux'):
                 self.fluxNames.append(name)
@@ -35,19 +39,15 @@ class star:
             elif name[-6::] == 'lambda':
                 self.lambdaNames.append(name)
         
-        x = np.array([col for col in self.__data[self.fluxNames]])
-        # get the number of vlaues that are not NaN
-        mask = ~np.isnan(x)
-        nrVals = np.sum(mask)
 
-        self.wlngths = np.zeros(nrVals)
-        self.fluxDens = np.zeros(nrVals)
-        self.fluxDensErrs = np.zeros(nrVals)
+        # Extract the columns holding the flux measurements (Jy) from the table.
+        self.fluxDens = np.array([col for col in self.__data[self.fluxNames].as_void()])
+        self.fluxDensErrs = np.array([col for col in self.__data[self.fluxErrNames].as_void()])
+        self.wlngths = np.array([col for col in self.__data[self.lambdaNames].as_void()])
 
-        for i in range(nrVals):
-            self.wlngths[i] = self.__data[np.array(self.lambdaNames)[mask][i]]
-            self.fluxDens[i] = self.__data[np.array(self.fluxNames)[mask][i]]
-            self.fluxDensErrs[i] = self.__data[np.array(self.fluxErrNames)[mask][i]]
+        self.fluxDens[self.fluxDens == 0] = np.nan
+        self.fluxDensErrs[self.fluxDensErrs == 0] = np.nan
+        self.wlngths[self.wlngths == 0] = np.nan
 
    
     def fluxDens2flux(self):
@@ -191,8 +191,44 @@ class star:
             return "not classified"
     
 
-    def plot(self, savepath):
-        """Plots the data"""
+    def plot(self, savepath, lower=None, upper=None):
+        """Plots the data.
+
+        This methods plots the SED of the source including any the
+        lines of the fit for the alpha indices. 
+
+        Parameters
+        ----------
+            savepath : str
+                The path to the directory where the plots should be
+                stored to.
+            lower : array_like
+                The lower limits of the ranges for the alpha indices.
+            upper : array_like
+                The upper limits of the ranges for the alpha indices.
+        """
+
+        # Check if the lower and upper boundaries are of the correct type
+        # and convert to numpy array if not.
+        try:
+            assert isinstance(lower, (tuple, np.ndarray, list))
+            assert isinstance(upper, (tuple, np.ndarray, list))
+        except AssertionError:
+            lower = np.array([lower])
+            upper = np.array([upper])
+
+        # If no values for the lower and upper boundary are provided, 
+        if (lower == None) or (upper == None):
+            key = list(self.alpha.keys())[0]
+            if "_est" in key:
+                lower = [int(key.split("_")[0].split('-')[0])]
+                upper = [int(key.split("_")[0].split('-')[1])]
+            else:
+                lower = [int(key.split('-')[0])]
+                upper = [int(key.split('-')[1])]
+                    
+        savepath = savepath + f'/{self.srcID:05d}.png'
+
 
         fig = plt.figure(figsize=(4,4), dpi=150)
 
@@ -203,17 +239,40 @@ class star:
 
         ax = fig.add_subplot(111)
 
-        if ~np.isnan(self.alpha['2-20']):
-            wl_range = np.linspace(0.5, 1000, 100)
+        for l, u in zip(lower, upper):
+            try:
+                if ~np.isnan(self.alpha[f'{l}-{u}']):
+                    wl_range = np.linspace(0.5, 1000, 100)
 
-            ax.plot(wl_range, self.__powerlaw([self.alpha['2-20'], self.intercept['2-20']], wl_range), lw=0.5, color='k', ls='--')
-            ax.plot(wl_range, self.__powerlaw([self.alpha['2-20_est'], self.intercept['2-20_est']], wl_range), lw=0.5, color='k', ls='-.')
+                    ax.plot(wl_range,
+                            self.__powerlaw(
+                                [self.alpha[f'{l}-{u}'],
+                                 self.intercept[f'{l}-{u}']],
+                                wl_range),
+                            lw=0.5,
+                            color='k',
+                            ls='--',
+                            label="$\\alpha_{"+str(l)+"-"+str(u)+"}$")
+
+                    ax.plot(wl_range,
+                            self.__powerlaw(
+                                [self.alpha[f'{l}-{u}_est'],
+                                 self.intercept[f'{l}-{u}_est']],
+                                wl_range),
+                            lw=0.5,
+                            color='k',
+                            ls='-.',
+                            label="$\\alpha_{"+str(l)+"-"+str(u)+"}$ est")
+
+            except KeyError as e:
+                tqdm.write(f'{e} not found. Skipping this range.')
+
+
         ax.scatter(self.wlngths[self.wlMask], self.fluxes[self.wlMask], marker=".", c='r')
         ax.errorbar(self.wlngths, self.fluxes, yerr=self.fluxErrs*1, fmt='.', ecolor='k', elinewidth=0.75, barsabove=False, capsize=2, capthick=0.75, ms=3.5)
-        #print(self.srcID)
-        #print(self.fluxes)
         ax.set_xscale('log')
         ax.set_yscale('log')
+        ax.legend(loc="upper right")
 
 
         fig.suptitle(f"Source ID: {int(self.srcID):04d}") #\nClass {args[0]['class_kiwm']}\t$\\alpha = {slopes[-1]:.2f}$")
