@@ -170,9 +170,12 @@ class star:
         self.fluxDens2flux()
         self.fluxDensErr2fluxErr()
 
+        # Get the mask to select data in the selected wavelength range.
         wlRangeMask = (self.wlngths > lower) & (self.wlngths < upper)
 
         if np.sum(wlRangeMask) <= 1:
+            # If there is at most one viable flux measurement, the source
+            # is not classifiable; store NaN values.
             self.alpha[f"{lower}-{upper}_est"] = np.nan
             self.intercept[f"{lower}-{upper}_est"] = np.nan
         elif (np.sum(wlRangeMask) == 2):
@@ -182,23 +185,33 @@ class star:
             # If they are within 5% of the shorter wavelength the source is
             # not classifiable. Do the least squares fit otherwise.
             if (1 - rel_wl_diff) < 0.05:
+                # If the measurements are too close to each other wavelength
+                # wise, the source is not classifiable; store NaN values.
                 self.alpha[f"{lower}-{upper}_est"] = np.nan
                 self.intercept[f"{lower}-{upper}_est"] = np.nan
             else:
+                # get the log wavelengths in the selected wavelength range.
                 self.log_wl = np.log10(self.wlngths[wlRangeMask])
+                # get the log fluxes in the selected wavelength range.
                 self.log_fluxes = np.log10(self.fluxes[wlRangeMask].value)
 
+                # Do the least squares line fit and store the ruslts.
                 opt, _ = optimize.curve_fit(self.__line, self.log_wl, self.log_fluxes)
                 self.alpha[f"{lower}-{upper}_est"] = opt[0]
                 self.intercept[f"{lower}-{upper}_est"] = opt[1]
+                # Free memory for garbage collection.
                 del opt
         else:
+            # get the log wavelengths in the selected wavelength range.
             self.log_wl = np.log10(self.wlngths[wlRangeMask])
+            # get the log fluxes in the selected wavelength range.
             self.log_fluxes = np.log10(self.fluxes[wlRangeMask].value)
 
+            # Do the least squares line fit and store the results.
             opt, _ = optimize.curve_fit(self.__line, self.log_wl, self.log_fluxes)
             self.alpha[f"{lower}-{upper}_est"] = opt[0]
             self.intercept[f"{lower}-{upper}_est"] = opt[1]
+            # Free memory for garbage collection.
             del opt
 
         return self.alpha, self.intercept
@@ -236,23 +249,17 @@ class star:
                 The intercept of the line in log-log space. This can be
                 used to overplot the fitted function on the SED.
         """
+        # Get the initial estimate for the ODR fit from a least squares fit.
         self.estimateAlpha(lower, upper)
 
+        # Get the selection masks for the selected wavelength range.
         wlRangeMask = (self.wlngths > lower) & (self.wlngths < upper)
+        # Get the selection mask for all measurements that have errors.
         fullDataMask = ~np.isnan(self.fluxErrs)
-
+        # Get the selection mask for the data used in the ODR fit.
         odrMask = wlRangeMask & fullDataMask
-
+        # Store the selection mask for the data in the selected wavelength range.
         self.wlMask = wlRangeMask
-
-        #if str(self.srcID) == '11915':
-        #    print(self.wlngths[wlRangeMask])
-        #    print(self.fluxes[wlRangeMask])
-        #    print(self.fluxErrs[wlRangeMask])
-        #    print(np.sum(fullDataMask[wlRangeMask]))
-        #    print(fullDataMask & wlRangeMask)
-        #    results.pprint()
-        #    exit(99)
 
         # Check if there are enough datapoints to compute the alpha index.
         # If there are less than two return NaN values.
