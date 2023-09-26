@@ -3,6 +3,8 @@
 import argparse
 import os
 
+import numpy as np
+
 from astropy.table import Table
 
 from classify.classify import star
@@ -31,10 +33,10 @@ def main():
             '-d', '--plot-dir',
             type=str,
             default='')
-    args = parser.parse_args()
-    #args = parser.parse_args([
-    #    '-i', 'Orion_YSO_fluxes_24Jul23.csv',
-    #    '-o', 'Orion_YSO_fluxes_24Jul23_classified.csv'])
+    #args = parser.parse_args()
+    args = parser.parse_args([
+        '-i', 'Orion_YSO_fluxes_24Jul23.csv',
+        '-o', 'test.csv'])
 
     in_path = os.path.abspath(args.input_table)
     out_path = os.path.abspath(args.output_table)
@@ -54,7 +56,7 @@ def main():
 
     stars = []
     print('\nreading Data...\n')
-    for source in tqdm(data[2:3]):
+    for source in tqdm(data[11085:11086]):
         stars.append(star(source))
 
     src_id = []

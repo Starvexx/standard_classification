@@ -15,10 +15,34 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 class star:
-    """Star class."""
+    """Star class.
+    
+    The star class is used to line determine  the infrares alpha index
+    of a young stellar object (YSO).
+
+    Methods
+    -------
+        fluxDens2flux()
+            Converts the spectral flux density from Jansky to spectral
+            flux in erg / s / cm^2 / μm.
+        fluxDensErr2flux()
+            Converts the flux density measurement error from Jansky to
+            flux error in erg / s / cm^2 / μm.
+        estimateAlpha(lower, upper) -> tuple
+            Estimates the infrared spectral index and returns the the
+            slope (alpha index) and the intercept of the least squares
+            fit. Here measurement errors are disregarded.
+    """
 
     def __init__(self, source):
-        """Class constructor."""
+        """Class constructor.
+        
+        Constructs the instance of a star.
+
+        Parameters
+        ----------
+            source : astropy.table.row.Row
+        """
         self.__data = source
         self.srcID = self.__data["Internal_ID"]
         self.alpha = {}
@@ -49,9 +73,59 @@ class star:
         self.fluxDensErrs[self.fluxDensErrs == 0] = np.nan
         self.wlngths[self.wlngths == 0] = np.nan
 
+
+    def __line(self, x, k, d):
+        """Just a boring old line, nothin else to see here.
+        
+        The line is used for the least squares fit to the SED to
+        estimate the infrared spectral index of a YSO.
+
+        Prameters
+        ---------
+            x : float
+                The wavelength (x coordinatet) at which the line is
+                evaluated.
+            k : float
+                The slope of the line.
+            d : float
+                The intercept of the line.
+
+        Returns
+        -------
+            float
+                The flux (y-value) at the respectice wavelength (x)
+                of the line.
+        """
+        return (k * x) + d
+
+
+    def __powerlaw(self, param, x):
+        """Powerlaw representing a line in log-log space.
+        
+        This method is the powerlaw representation of a line in double
+        logmarithmic space. This workaround is needed to determine the
+        alpha index with the ODR method which includes errors in the
+        line fit.
+        
+        Parameters
+        ----------
+            param : list of floats
+                This list contains slope and intercept parameters of
+                the line in log/log space.
+            x : float
+                The wavelength at which the power law is evaluated.
+
+        Returns
+        -------
+            float
+                The powerlaw evaluated at wavelength x.
+        """
+        k, d = param[0], param[1]
+        return 10 ** (k * np.log10(x) + d)
+
    
     def fluxDens2flux(self):
-        """Converts fluxdensities to fluxes"""
+        """Converts flux densities to fluxes."""
         self.fluxes = (self.fluxDens * u.Jy).to(u.erg / u.s / u.cm**2 / u.um,
                 equivalencies=u.spectral_density(self.wlngths * u.um))
 
@@ -59,31 +133,65 @@ class star:
 
 
     def fluxDensErr2fluxErr(self):
+        """Converts flux density errors to flux errors."""
         self.fluxErrs = (self.fluxDensErrs * u.Jy).to(u.erg / u.s / u.cm**2 / u.um,
                 equivalencies=u.spectral_density(self.wlngths * u.um))
 
         return self.fluxErrs
 
 
-    def __line(self, x, k, d):
-        """Just a boring old line, nothin else to see here."""
-        return (k * x) + d
-
-
-    def __powerlaw(self, param, x):
-        """ Powerlaw representation of the line in log log space."""
-        k, d = param[0], param[1]
-        return 10 ** (k * np.log10(x) + d)
-
-
     def estimateAlpha(self, lower, upper):
-        """Computes the alpha index in the chosen wavelength range in log-log space"""
+        """Estimates the alpha index.
+         
+        This method computesin the infrared alpha index the chosen
+        wavelength range by least squares fitting a line to the SED as
+        a first estimate of the alpha index.
+
+        Parameters
+        ----------
+            lower : int
+                The lower boundary of the wavelenght range for the 
+                least squares fit.
+            upper : int
+                The upper boundary of the wavelength range for the
+                least squares fit.
+
+        Returns
+        -------
+            alpha : float
+                The estimated slope of the least squares line fit
+                which determines the alpha index.
+            intercept : float
+                The estimated intercept from the least squares line
+                fit. can be used to overplot the line on a SED plot.
+        
+        """
+        # Convert the
         self.fluxDens2flux()
+        self.fluxDensErr2fluxErr()
+
         wlRangeMask = (self.wlngths > lower) & (self.wlngths < upper)
 
         if np.sum(wlRangeMask) <= 1:
             self.alpha[f"{lower}-{upper}_est"] = np.nan
             self.intercept[f"{lower}-{upper}_est"] = np.nan
+        elif (np.sum(wlRangeMask) == 2):
+            # compute the relative difference between the two wavelengths.
+            rel_wl_diff = self.wlngths[wlRangeMask][0] / self.wlngths[wlRangeMask][1]
+            
+            # If they are within 5% of the shorter wavelength the source is
+            # not classifiable. Do the least squares fit otherwise.
+            if (1 - rel_wl_diff) < 0.05:
+                self.alpha[f"{lower}-{upper}_est"] = np.nan
+                self.intercept[f"{lower}-{upper}_est"] = np.nan
+            else:
+                self.log_wl = np.log10(self.wlngths[wlRangeMask])
+                self.log_fluxes = np.log10(self.fluxes[wlRangeMask].value)
+
+                opt, _ = optimize.curve_fit(self.__line, self.log_wl, self.log_fluxes)
+                self.alpha[f"{lower}-{upper}_est"] = opt[0]
+                self.intercept[f"{lower}-{upper}_est"] = opt[1]
+                del opt
         else:
             self.log_wl = np.log10(self.wlngths[wlRangeMask])
             self.log_fluxes = np.log10(self.fluxes[wlRangeMask].value)
@@ -97,10 +205,37 @@ class star:
 
 
     def getAlphaWithErrors(self, lower, upper):
-        """Computes the alpha index considering errors."""
+        """Computes the alpha index considering errors.
+        
+        Computes the infrared spectral index also regarding measurement
+        errors. The method used is orthogonal distance regression (ODR)
+        which fits a line to the SED within a defined wavelength range.
 
-        self.fluxDens2flux()
-        self.fluxDensErr2fluxErr()
+        The ODR algorithm used here only works with symetrical errors.
+        Therefore, fitting is done in non logarithmic space here the
+        measurement errors are symetrical unlike to log-log space where
+        they are asymetrical. This however requires a non linear
+        fitting function which is parametrised to represent a line in
+        double logarithmic space needed to determine the alpha index.
+
+        Parameters
+        ----------
+            lower : float
+                The lower boundary of the wavelength range within
+                which the alpha index is computed.
+            upper : float
+                The upper boundary of the wavelength range within
+                which the alpha index is computed.
+        
+        Returns
+        -------
+            alpha : float
+                The slope of the line in log-log space determining the
+                infrared spectral index for YSO classification.
+            intercept : float
+                The intercept of the line in log-log space. This can be
+                used to overplot the fitted function on the SED.
+        """
         self.estimateAlpha(lower, upper)
 
         wlRangeMask = (self.wlngths > lower) & (self.wlngths < upper)
@@ -126,11 +261,14 @@ class star:
         # If there are at least two measurements with errors, use only those
         # that provide measurement errors to compute the alpha index with ODR.
 
+        if (np.sum(odrMask) == 2):
+            rel_wl_diff = self.wlngths[wlRangeMask][0] / self.wlngths[wlRangeMask][1]
+
         if (np.sum(wlRangeMask) <= 1) or (np.sum(odrMask) <= 1):
             # Less than two measurements with errors. Using estimate.
             self.alpha[f"{lower}-{upper}"] = self.alpha[f"{lower}-{upper}_est"]
             self.intercept[f"{lower}-{upper}"] = self.intercept[f"{lower}-{upper}_est"]
-        elif np.any(self.fluxErrs[wlRangeMask].value) and (np.sum(fullDataMask[wlRangeMask]) >= 2):
+        elif np.any(self.fluxErrs[wlRangeMask].value) and (np.sum(fullDataMask[wlRangeMask]) > 2):
             # Has at least two measurements with errors. Using ODR on data
             # with errors.
             mask = wlRangeMask & fullDataMask
