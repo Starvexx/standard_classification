@@ -36,7 +36,9 @@ def main():
     #args = parser.parse_args()
     args = parser.parse_args([
         '-i', 'Orion_YSO_fluxes_24Jul23.csv',
-        '-o', 'test.csv'])
+        '-o', 'test.csv',
+        '-p',
+        '-d', './SED_plots'])
 
     in_path = os.path.abspath(args.input_table)
     out_path = os.path.abspath(args.output_table)
@@ -56,7 +58,8 @@ def main():
 
     stars = []
     print('\nreading Data...\n')
-    for source in tqdm(data[11085:11086]):
+    #for source in tqdm(data[11085:11086]):
+    for source in tqdm(data):
         stars.append(star(source))
 
     src_id = []
@@ -72,6 +75,8 @@ def main():
         if len(s.fluxDens) != 0:
             #s.fluxDens2flux()
             s.getAlphaWithErrors(2, 20)
+            s.getAlphaWithErrors(2, 10)
+            s.getAlphaWithErrors(10, 25)
             #print(s.getAlpha(2, 20))
 
             if store_plots:

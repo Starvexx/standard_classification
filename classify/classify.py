@@ -122,10 +122,57 @@ class star:
         """
         k, d = param[0], param[1]
         return 10 ** (k * np.log10(x) + d)
+    
+
+    def __wlClose(self, wl1: float, wl2: float, threshold: float) -> bool:
+        """Tests if the two wavelengths are very close to each other.
+        
+        If the two wavelengths are within a threshold in % of each
+        other, if they are the only two wavelengths in a range of
+        wavelengths for which the alpha index is to be determined,
+        they retrieved spectral index may be very far off from the 
+        true value. Therefore, the two measurements need to be
+        separated by a minimum distance wavelengths wise to give a
+        viable result. This method check if the two measurements
+        lie within the % threshold window of each other.
+
+        Parameters
+        ----------
+            wl1 : float
+                The first wavelength.
+            wl2 : float
+                The second wavelength.
+            threshold : 
+                The threshold in percent that defines wheter the two
+                measurements are too close to each other.
+            
+        Returns
+        -------
+            tooClose : bool
+                Returns True if the two measurements are too close
+                to each other and False otherwise.
+        """
+        if 0 < threshold < 100:
+            rel_wl_diff = 1 - (wl1 / wl2)
+            if rel_wl_diff < (threshold / 100):
+                return True
+            else:
+                return False
+        else:
+            raise ValueError("threshold must be a real number between 0 and 100")
 
    
     def fluxDens2flux(self):
-        """Converts flux densities to fluxes."""
+        """Converts flux densities to fluxes.
+        
+        Does the conversion from Jansky (Jy) to erg / s / cm^2 / um
+
+        Returns
+        -------
+            fluxes : float
+                The converted fluxes.
+        
+        """
         self.fluxes = (self.fluxDens * u.Jy).to(u.erg / u.s / u.cm**2 / u.um,
                 equivalencies=u.spectral_density(self.wlngths * u.um))
 
@@ -133,7 +180,15 @@ class star:
 
 
     def fluxDensErr2fluxErr(self):
-        """Converts flux density errors to flux errors."""
+        """Converts flux density errors to flux errors.
+        
+        Does the conversion from Jansky (Jy) to erg / s / cm^2 / um
+        
+        Returns
+        -------
+            fluxErrs : float
+                Returns the converted flux errors.
+        """
         self.fluxErrs = (self.fluxDensErrs * u.Jy).to(u.erg / u.s / u.cm**2 / u.um,
                 equivalencies=u.spectral_density(self.wlngths * u.um))
 
@@ -184,7 +239,10 @@ class star:
             
             # If they are within 5% of the shorter wavelength the source is
             # not classifiable. Do the least squares fit otherwise.
-            if (1 - rel_wl_diff) < 0.05:
+            #if (1 - rel_wl_diff) < 0.05:
+            if self.__wlClose(self.wlngths[wlRangeMask][0],
+                              self.wlngths[wlRangeMask][1],
+                              5):
                 # If the measurements are too close to each other wavelength
                 # wise, the source is not classifiable; store NaN values.
                 self.alpha[f"{lower}-{upper}_est"] = np.nan
@@ -269,8 +327,11 @@ class star:
         # that provide measurement errors to compute the alpha index with ODR.
 
         if (np.sum(odrMask) == 2):
-            rel_wl_diff = self.wlngths[wlRangeMask][0] / self.wlngths[wlRangeMask][1]
-
+            if self.__wlClose(self.wlngths[odrMask][0],
+                              self.wlngths[odrMask][1],
+                              5):
+                self.alpha[f"{lower}-{upper}"] = self.alpha[f"{lower}-{upper}_est"]
+                self.intercept[f"{lower}-{upper}"] = self.intercept[f"{lower}-{upper}_est"]
         if (np.sum(wlRangeMask) <= 1) or (np.sum(odrMask) <= 1):
             # Less than two measurements with errors. Using estimate.
             self.alpha[f"{lower}-{upper}"] = self.alpha[f"{lower}-{upper}_est"]
@@ -322,6 +383,21 @@ class star:
 
 
     def classify(self, alpha):
+        """Classification method.
+        
+        From the computed alpha index, the observational class is
+        infered as per Grossschedl et.al., (2016).
+
+        Parameters
+        ----------
+            alpha : float
+                The infrared spectral index.
+        
+        Returns
+        -------
+            YSO class : string
+                The observational YSO class.
+        """
         if (0.3 < alpha):
             return "0/I"
         elif ((-0.3 < alpha) & (alpha < 0.3)):
@@ -413,6 +489,9 @@ class star:
                 tqdm.write(f'{e} not found. Skipping this range.')
 
 
+        if np.sum(np.isnan(self.fluxes[self.wlMask])) == len(self.fluxes[self.wlMask]):
+            tqdm.write("Empty data: skipping plot...")
+            return
         ax.scatter(self.wlngths[self.wlMask], self.fluxes[self.wlMask], marker=".", c='r')
         ax.errorbar(self.wlngths, self.fluxes, yerr=self.fluxErrs*1, fmt='.', ecolor='k', elinewidth=0.75, barsabove=False, capsize=2, capthick=0.75, ms=3.5)
         ax.set_xscale('log')
@@ -425,11 +504,9 @@ class star:
         ax.set_ylabel('$\log\\left(\lambda F_\lambda \\left[\\frac{\mathrm{erg}}{\mathrm{s\,cm}^2}\\right]\\right)$')
         ax.set_xlim(10**(-0.5), 10**3)
         try:
-            pass
             ax.set_ylim(10**(np.nanmean(np.log10(self.fluxes.value))-2), 10**(np.nanmean(np.log10(self.fluxes.value))+2))
         except:
             ax.set_ylim(10**(np.nanmin(np.log10(self.fluxes.value))), 10**(np.nanmax(np.log10(self.fluxes.value))))
-            pass
 
         plt.tight_layout()
         fmt = savepath.split('.')[-1]
