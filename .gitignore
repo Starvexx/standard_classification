@@ -1,6 +1,6 @@
 **/__pycache__/
 .vscode/
-.pnicer/
+.venv/
 
 # Custom stuff added by David.
 
