@@ -1,6 +1,7 @@
 **/__pycache__/
 .vscode/
 .venv/
+test/
 
 # Custom stuff added by David.
 
@@ -10,3 +11,5 @@
 *.swp
 
 **/*.png
+**/*.fit
+**/*.fits
