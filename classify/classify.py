@@ -17,7 +17,7 @@ from tqdm import tqdm
 class star:
     """Star class.
     
-    The star class is used to line determine  the infrares alpha index
+    The star class is used to line determine  the infrared alpha index
     of a young stellar object (YSO).
 
     Methods
@@ -55,7 +55,7 @@ class star:
         self.lambdaNames = []
 
         # Get the names of the different columns holding the relevant data.
-        # To compute the alpha index we need all coumns containing flux,
+        # To compute the alpha index we need all columns containing flux,
         # flux errors, as well as their respective wavelengths lambda
         for name in self.__data.colnames[4::]:
             if (name[-4::] == 'flux'):
