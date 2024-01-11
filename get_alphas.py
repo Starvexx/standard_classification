@@ -35,10 +35,8 @@ def main():
             default='')
     #args = parser.parse_args()
     args = parser.parse_args([
-        '-i', 'Orion_YSO_fluxes_24Jul23.csv',
-        '-o', 'test.csv',
-        '-p',
-        '-d', './SED_plots'])
+        '-i', './Orion_YSO_fluxes_24Jul23.csv',
+        '-o', './Orion_YSO_fluxes_24Jul23_classified.csv'])
 
     in_path = os.path.abspath(args.input_table)
     out_path = os.path.abspath(args.output_table)
@@ -59,10 +57,12 @@ def main():
     stars = []
     print('\nreading Data...\n')
     #for source in tqdm(data[11085:11086]):
-    for source in tqdm(data[:2]):
+    for source in tqdm(data):
         stars.append(star(source))
 
     src_id = []
+    ra = []
+    dec = []
     alpha = []
     intercept = []
     alpha_est = []
@@ -73,10 +73,10 @@ def main():
     s = stars[1]
     s.fluxDens2flux()
     
-    print(s.fluxes)
-    print(s.wlngths)
-    s.altAlpha([1,2], [90, 200])
-    exit(9)
+    #print(s.fluxes)
+    #print(s.wlngths)
+    #s.altAlpha([1,2], [90, 200])
+    #exit(9)
 
     print('\nDone reading!\n\nCrunching numbers ...\n')
     for s in tqdm(stars):
@@ -91,6 +91,8 @@ def main():
                 s.plot(plot_dir, 2, 20)
 
             src_id.append(s.srcID)
+            ra.append(s.ra)
+            dec.append(s.dec)
             alpha.append(s.alpha['2-20'])
             alpha_est.append(s.alpha['2-20_est'])
             intercept.append(s.intercept['2-20'])
@@ -98,21 +100,28 @@ def main():
             cls.append(s.cls['2-20'])
             cls_est.append(s.cls['2-20_est'])
 
+    results = [src_id,
+               ra]
+
     t = Table(
             data=[src_id,
-                alpha_est,
-                alpha,
-                intercept_est,
-                intercept,
-                cls,
-                cls_est],
-            names=('InternalID',
-                'alpha_est',
-                'alpha',
-                'intercept_est',
-                'intercept',
-                'class',
-                'class_est'))
+                  ra,
+                  dec,
+                  alpha_est,
+                  alpha,
+                  intercept_est,
+                  intercept,
+                  cls,
+                  cls_est],
+            names=('Internal_ID',
+                   'RA',
+                   'DE',
+                   'alpha_est',
+                   'alpha',
+                   'intercept_est',
+                   'intercept',
+                   'class',
+                   'class_est'))
     t.write(out_path, format='csv', overwrite=True)
 
 

@@ -14,6 +14,7 @@ from matplotlib import pyplot as plt
 
 from tqdm import tqdm
 
+
 class star:
     """Star class.
     
@@ -45,6 +46,8 @@ class star:
         """
         self.__data = source
         self.srcID = self.__data["Internal_ID"]
+        self.ra = self.__data["RA"]
+        self.dec = self.__data["DE"]
         self.alpha = {}
         self.n = {}
         self.intercept_n = {}
@@ -54,9 +57,10 @@ class star:
         self.fluxErrNames = []
         self.lambdaNames = []
 
-        # Get the names of the different columns holding the relevant data.
-        # To compute the alpha index we need all coumns containing flux,
-        # flux errors, as well as their respective wavelengths lambda
+        # Get the names of the different columns holding the relevant
+        # data. To compute the alpha index we need all columns
+        # containing flux, flux errors, as well as their respective
+        # wavelengths, lambda.
         for name in self.__data.colnames[4::]:
             if (name[-4::] == 'flux'):
                 self.fluxNames.append(name)
@@ -64,6 +68,7 @@ class star:
                 self.fluxErrNames.append(name)
             elif name[-6::] == 'lambda':
                 self.lambdaNames.append(name)
+                
         
 
         # Extract the columns holding the flux measurements (Jy) from the table.
@@ -77,7 +82,7 @@ class star:
 
 
     def __line(self, x, k, d):
-        """Just a boring old line, nothin else to see here.
+        """Just a boring old line, nothing else to see here.
         
         The line is used for the least squares fit to the SED to
         estimate the infrared spectral index of a YSO.
@@ -85,7 +90,7 @@ class star:
         Prameters
         ---------
             x : float
-                The wavelength (x coordinatet) at which the line is
+                The wavelength (x coordinate) at which the line is
                 evaluated.
             k : float
                 The slope of the line.
@@ -95,7 +100,7 @@ class star:
         Returns
         -------
             float
-                The flux (y-value) at the respectice wavelength (x)
+                The flux (y-value) at the respective wavelength (x)
                 of the line.
         """
         return (k * x) + d
@@ -105,7 +110,7 @@ class star:
         """Powerlaw representing a line in log-log space.
         
         This method is the powerlaw representation of a line in double
-        logmarithmic space. This workaround is needed to determine the
+        logarithmic space. This workaround is needed to determine the
         alpha index with the ODR method which includes errors in the
         line fit.
         
@@ -145,7 +150,7 @@ class star:
             wl2 : float
                 The second wavelength.
             threshold : 
-                The threshold in percent that defines wheter the two
+                The threshold in percent that defines wether the two
                 measurements are too close to each other.
             
         Returns
@@ -200,14 +205,14 @@ class star:
     def estimateAlpha(self, lower, upper):
         """Estimates the alpha index.
          
-        This method computesin the infrared alpha index the chosen
+        This method computes the infrared alpha index in the chosen
         wavelength range by least squares fitting a line to the SED as
         a first estimate of the alpha index.
 
         Parameters
         ----------
             lower : int
-                The lower boundary of the wavelenght range for the 
+                The lower boundary of the wavelength range for the 
                 least squares fit.
             upper : int
                 The upper boundary of the wavelength range for the
@@ -220,7 +225,7 @@ class star:
                 which determines the alpha index.
             intercept : float
                 The estimated intercept from the least squares line
-                fit. can be used to overplot the line on a SED plot.
+                fit. can be used to over plot the line on a SED plot.
         
         """
         # Convert the
@@ -284,11 +289,11 @@ class star:
         errors. The method used is orthogonal distance regression (ODR)
         which fits a line to the SED within a defined wavelength range.
 
-        The ODR algorithm used here only works with symetrical errors.
+        The ODR algorithm used here only works with symmetrical errors.
         Therefore, fitting is done in non logarithmic space here the
-        measurement errors are symetrical unlike to log-log space where
-        they are asymetrical. This however requires a non linear
-        fitting function which is parametrised to represent a line in
+        measurement errors are symmetrical unlike to log-log space where
+        they are asymmetrical. This however requires a non linear
+        fitting function which is parametrized to represent a line in
         double logarithmic space needed to determine the alpha index.
 
         Parameters
@@ -307,7 +312,7 @@ class star:
                 infrared spectral index for YSO classification.
             intercept : float
                 The intercept of the line in log-log space. This can be
-                used to overplot the fitted function on the SED.
+                used to over plot the fitted function on the SED.
         """
         # Get the initial estimate for the ODR fit from a least squares fit.
         self.estimateAlpha(lower, upper)
@@ -321,7 +326,7 @@ class star:
         # Store the selection mask for the data in the selected wavelength range.
         self.wlMask = wlRangeMask
 
-        # Check if there are enough datapoints to compute the alpha index.
+        # Check if there are enough data points to compute the alpha index.
         # If there are less than two return NaN values.
         # If there are only two measurements but there is at least one
         # measurement error missing, use the estimated vale from scipy optimize.
@@ -408,7 +413,7 @@ class star:
         """Classification method.
         
         From the computed alpha index, the observational class is
-        infered as per Grossschedl et.al., (2016).
+        inferred as per Grossschedl et.al., (2016).
 
         Parameters
         ----------
@@ -451,8 +456,8 @@ class star:
                 The upper limits of the ranges for the alpha indices.
         """
 
-        # Check if the lower and upper boundaries are of the correct type
-        # and convert to numpy array if not.
+        # Check if the lower and upper boundaries are of the correct
+        # type and convert to numpy array if not.
         try:
             assert isinstance(lower, (tuple, np.ndarray, list))
             assert isinstance(upper, (tuple, np.ndarray, list))
@@ -514,8 +519,20 @@ class star:
         if np.sum(np.isnan(self.fluxes[self.wlMask])) == len(self.fluxes[self.wlMask]):
             tqdm.write("Empty data: skipping plot...")
             return
-        ax.scatter(self.wlngths[self.wlMask], self.fluxes[self.wlMask], marker=".", c='r')
-        ax.errorbar(self.wlngths, self.fluxes, yerr=self.fluxErrs*1, fmt='.', ecolor='k', elinewidth=0.75, barsabove=False, capsize=2, capthick=0.75, ms=3.5)
+        ax.scatter(self.wlngths[self.wlMask],
+                   self.fluxes[self.wlMask],
+                   marker=".",
+                   c='r')
+        ax.errorbar(self.wlngths,
+                    self.fluxes,
+                    yerr=self.fluxErrs*1,
+                    fmt='.',
+                    ecolor='k',
+                    elinewidth=0.75,
+                    barsabove=False,
+                    capsize=2,
+                    capthick=0.75,
+                    ms=3.5)
         ax.set_xscale('log')
         ax.set_yscale('log')
         ax.legend(loc="upper right")
@@ -526,9 +543,11 @@ class star:
         ax.set_ylabel('$\log\\left(\lambda F_\lambda \\left[\\frac{\mathrm{erg}}{\mathrm{s\,cm}^2}\\right]\\right)$')
         ax.set_xlim(10**(-0.5), 10**3)
         try:
-            ax.set_ylim(10**(np.nanmean(np.log10(self.fluxes.value))-2), 10**(np.nanmean(np.log10(self.fluxes.value))+2))
+            ax.set_ylim(10**(np.nanmean(np.log10(self.fluxes.value))-2),
+                        10**(np.nanmean(np.log10(self.fluxes.value))+2))
         except:
-            ax.set_ylim(10**(np.nanmin(np.log10(self.fluxes.value))), 10**(np.nanmax(np.log10(self.fluxes.value))))
+            ax.set_ylim(10**(np.nanmin(np.log10(self.fluxes.value))),
+                        10**(np.nanmax(np.log10(self.fluxes.value))))
 
         plt.tight_layout()
         fmt = savepath.split('.')[-1]

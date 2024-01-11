@@ -1,0 +1,6 @@
+The source files in this directory are used to estimate interstellar
+extinction of the YSO list. However, the PNICER method is only truly
+informative for sources without significant infrared excess. For class
+II YSOs it is recommended to deredden the sources to the T-Tauri locus,
+or use the spectral type to determine the intrinsic color of the source
+if a spectral type is available.
