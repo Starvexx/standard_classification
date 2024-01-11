@@ -2,13 +2,13 @@ TODO:
 (classify.py)
 - Fix bugs (David)
 - Expand classication schemes function (Julia)
-- Put Av as possible external parameter (David)
+- DONE??? Put Av as possible external parameter (David)
 
 (get_extinction.py)
-- Chose extinction law (team)
-- CTTS Loccus (Julia)
-  - Ours
-  - Classical
+- DONE: Chose extinction law (team)
+- DONE: CTTS Loccus (Julia)
+    - Ours
+    - Classical
 - Dustmap integration (someone)
-- PNICER integration (David)
+- DONE: PNICER integration (David) 
 - Empirical Sequence regressor (Julia)

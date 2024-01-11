@@ -1,0 +1,7 @@
+The script in this directory is just a helper script to select sources
+with significant infrared excess. This is a necessary step for the
+alpha index calculation when using PNICER interstellar extinction
+estimation.
+
+This can be ignored for all use cases that do not make use of PNICER or
+any of its related extinction estimation codes.
