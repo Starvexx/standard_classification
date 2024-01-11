@@ -17,7 +17,7 @@ from tqdm import tqdm
 class star:
     """Star class.
     
-    The star class is used to line determine  the infrares alpha index
+    The star class is used to line determine  the infrared alpha index
     of a young stellar object (YSO).
 
     Methods
@@ -46,6 +46,8 @@ class star:
         self.__data = source
         self.srcID = self.__data["Internal_ID"]
         self.alpha = {}
+        self.n = {}
+        self.intercept_n = {}
         self.intercept = {}
         self.cls = {}
         self.fluxNames = []
@@ -53,7 +55,7 @@ class star:
         self.lambdaNames = []
 
         # Get the names of the different columns holding the relevant data.
-        # To compute the alpha index we need all coumns containing flux,
+        # To compute the alpha index we need all columns containing flux,
         # flux errors, as well as their respective wavelengths lambda
         for name in self.__data.colnames[4::]:
             if (name[-4::] == 'flux'):
@@ -132,8 +134,8 @@ class star:
         wavelengths for which the alpha index is to be determined,
         they retrieved spectral index may be very far off from the 
         true value. Therefore, the two measurements need to be
-        separated by a minimum distance wavelengths wise to give a
-        viable result. This method check if the two measurements
+        separated by a minimum distance wavelength wise to give a
+        viable result. This method checks if the two measurements
         lie within the % threshold window of each other.
 
         Parameters
@@ -275,7 +277,7 @@ class star:
         return self.alpha, self.intercept
 
 
-    def getAlphaWithErrors(self, lower, upper):
+    def getAlphaWithErrors(self, lower : float, upper : float) -> tuple:
         """Computes the alpha index considering errors.
         
         Computes the infrared spectral index also regarding measurement
@@ -382,7 +384,27 @@ class star:
         return self.alpha, self.intercept
 
 
-    def classify(self, alpha):
+    def altAlpha(self, lower : list, upper : list) -> tuple:
+        lower_mask = (self.wlngths > lower[0]) & (self.wlngths < lower[1])
+        upper_mask = (self.wlngths > upper[0]) & (self.wlngths < upper[1])
+        
+        lower_wlngths = self.wlngths[lower_mask]
+        upper_wlngths = self.wlngths[upper_mask]
+
+        lower_flux = self.fluxes[lower_mask]
+        upper_flux = self.fluxes[upper_mask]
+        
+        if (len(lower_flux) < 1) & (len(upper_flux) < 1):
+            self.n[f'{lower[0]}-{upper[-1]}'] = np.nan
+            self.intercept_n[f'{lower[0]}-{upper[-1]}'] = np.nan
+        else:
+            n = np.log10(upper_flux[0] / lower_flux[0]) / np.log10(lower_wlngths[0] / upper_wlngths[0])
+            self.n[f'{lower[0]}-{upper[-1]}'] = n
+            
+            print(n)
+
+
+    def classify(self, alpha : float) -> str:
         """Classification method.
         
         From the computed alpha index, the observational class is

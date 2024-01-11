@@ -59,7 +59,7 @@ def main():
     stars = []
     print('\nreading Data...\n')
     #for source in tqdm(data[11085:11086]):
-    for source in tqdm(data):
+    for source in tqdm(data[:2]):
         stars.append(star(source))
 
     src_id = []
@@ -69,6 +69,14 @@ def main():
     intercept_est = []
     cls = []
     cls_est = []
+
+    s = stars[1]
+    s.fluxDens2flux()
+    
+    print(s.fluxes)
+    print(s.wlngths)
+    s.altAlpha([1,2], [90, 200])
+    exit(9)
 
     print('\nDone reading!\n\nCrunching numbers ...\n')
     for s in tqdm(stars):
