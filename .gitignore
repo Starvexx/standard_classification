@@ -1,9 +1,14 @@
+# Directories
+
 **/__pycache__/
 .vscode/
 .venv/
-test/
+data/
+images/
+SED_plots/
 
-# Custom stuff added by David.
+
+# Specific files
 
 *.csv
 *.png
