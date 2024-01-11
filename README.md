@@ -10,7 +10,4 @@ of the spectral energy distribution. Based on the measured slope, the
 YSOs are divided into 5 distinct classes (0/I, flat spectrum, II,
 III with debris disk, III no disk/MS star).
 
-
-.. note::
-
-    This project is under active development.
+This project is under active development.

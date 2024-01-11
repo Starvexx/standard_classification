@@ -1,10 +1,9 @@
-import os
-
-import argparse
+from __future__ import annotations
 
 import numpy as np
 
-from astropy.table import Table
+import astropy
+from astropy.table import Row
 from astropy import units as u
 
 from scipy import optimize
@@ -21,28 +20,44 @@ class star:
     The star class is used to line determine  the infrared alpha index
     of a young stellar object (YSO).
 
-    Methods
-    -------
-        fluxDens2flux()
-            Converts the spectral flux density from Jansky to spectral
-            flux in erg / s / cm^2 / μm.
-        fluxDensErr2flux()
-            Converts the flux density measurement error from Jansky to
-            flux error in erg / s / cm^2 / μm.
-        estimateAlpha(lower, upper) -> tuple
-            Estimates the infrared spectral index and returns the the
-            slope (alpha index) and the intercept of the least squares
-            fit. Here measurement errors are disregarded.
+    Attributes
+    ----------
+    srcID : int
+        The unique source identifier of the YSO (from input catalog).
+    ra : float
+        Right Ascension of the YSO.
+    dec : float
+        Declination of the YOS
+    alpha : dict
+        Dictionary containing the alpha indices calculated for this YSO
+    intercept : dict
+        Dictionary holding the intercepts of the line fits. These can be
+        used to plot the fitted line to the SED of the YSO.
+    intercept_n : dict
+        Dictionary holding the intercepts from the alternative alpha
+        index method.
+    cls : dict
+        Dictionary holding the determined observational class of the
+        YSO.
+    fluxNames : list
+        A list containing the names of the flux columns from the input
+        catalog.
+    fluxErrNames : list
+        A list containing the names of the flux error columns from the
+        input catalog.
+    lambdaNames : list
+        A list containing the names of the wavelength columns from the
+        input catalog.
     """
 
-    def __init__(self, source):
+    def __init__(self, source : astropy.table.Row):
         """Class constructor.
         
         Constructs the instance of a star.
 
         Parameters
         ----------
-            source : astropy.table.row.Row
+            source : astropy.table.Row
         """
         self.__data = source
         self.srcID = self.__data["Internal_ID"]
@@ -50,8 +65,8 @@ class star:
         self.dec = self.__data["DE"]
         self.alpha = {}
         self.n = {}
-        self.intercept_n = {}
         self.intercept = {}
+        self.intercept_n = {}
         self.cls = {}
         self.fluxNames = []
         self.fluxErrNames = []
@@ -82,7 +97,7 @@ class star:
         self.wlngths[self.wlngths == 0] = np.nan
 
 
-    def __line(self, x, k, d):
+    def __line(self, x : float, k : float, d : float) -> float:
         """Just a boring old line, nothing else to see here.
         
         The line is used for the least squares fit to the SED to
@@ -107,7 +122,7 @@ class star:
         return (k * x) + d
 
 
-    def __powerlaw(self, param, x):
+    def __powerlaw(self, param : ArrayLike, x : float) -> float:
         """Powerlaw representing a line in log-log space.
         
         This method is the powerlaw representation of a line in double
@@ -178,8 +193,7 @@ class star:
         Returns
         -------
             fluxes : float
-                The converted fluxes.
-        
+                The converted fluxes. 
         """
         self.fluxes = (self.fluxDens * u.Jy).to(u.erg / u.s / u.cm**2 / u.um,
                 equivalencies=u.spectral_density(self.wlngths * u.um))

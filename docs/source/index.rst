@@ -17,9 +17,10 @@ III with debris disk, III no disk/MS star).
 
 
 .. note::
+   This project is under active development.
 
 Contents
 --------
 
 .. toctree::
-   star
+   api/star
