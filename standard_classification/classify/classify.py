@@ -17,8 +17,8 @@ from tqdm import tqdm
 class star:
     """Star class.
     
-    The star class is used to line determine  the infrared alpha index
-    of a young stellar object (YSO).
+    The star class is used to determine the infrared alpha index of a
+    young stellar object (YSO).
 
     Attributes
     ----------
@@ -217,7 +217,7 @@ class star:
         return self.fluxErrs
 
 
-    def estimateAlpha(self, lower, upper):
+    def estimateAlpha(self, lower : int, upper : int) -> tuple[float, float]:
         """Estimates the alpha index.
          
         This method computes the infrared alpha index in the chosen
@@ -243,7 +243,7 @@ class star:
                 fit. can be used to over plot the line on a SED plot.
         
         """
-        # Convert the
+        # Convert the flux density and flux density errors
         self.fluxDens2flux()
         self.fluxDensErr2fluxErr()
 

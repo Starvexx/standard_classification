@@ -13,5 +13,4 @@ initially unclassified YSO to which the standard classification is
 applied to.
 
 .. autoclass:: classify.classify.star
-    :members:
     :private-members:
