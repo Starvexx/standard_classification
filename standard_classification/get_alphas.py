@@ -35,8 +35,9 @@ def main():
             default='')
     #args = parser.parse_args()
     args = parser.parse_args([
-        '-i', './Orion_YSO_fluxes_24Jul23.csv',
-        '-o', './Orion_YSO_fluxes_24Jul23_classified.csv'])
+        '-i', '../data/raw_data/Orion_YSO_fluxes_24Jul23.csv',
+        '-o', '../data/processed_data/Orion_YSO_fluxes_24Jul23_classified.csv',
+        '-d', '../SED_plots'])
 
     in_path = os.path.abspath(args.input_table)
     out_path = os.path.abspath(args.output_table)

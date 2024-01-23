@@ -7,6 +7,8 @@ data/
 images/
 SED_plots/
 YSO_selection/
+dist/
+docs/build/
 
 
 # Specific files
