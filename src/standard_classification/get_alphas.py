@@ -7,7 +7,7 @@ import numpy as np
 
 from astropy.table import Table
 
-from classify.classify import star
+from cls.classify import star
 
 from tqdm import tqdm
 

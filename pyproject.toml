@@ -10,9 +10,6 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.dynamic]
 version = {attr = "standard_classification.__version__"}
 
-[tool.setuptools]
-py-modules = ["standard_classification"]
-
 [project]
 name = "standard_classification"
 dynamic = ["version"]
