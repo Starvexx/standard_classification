@@ -9,6 +9,7 @@ SED_plots/
 YSO_selection/
 dist/
 docs/build/
+build/
 
 
 # Specific files
