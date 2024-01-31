@@ -29,3 +29,5 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/Starvexx/standard_classification"
+Documentation = "https://standard-classification.readthedocs.io/en/latest/"
+
