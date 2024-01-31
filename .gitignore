@@ -24,3 +24,8 @@ build/
 **/*.png
 **/*.fit
 **/*.fits
+
+
+# Allow
+
+!docs/requirements.txt
