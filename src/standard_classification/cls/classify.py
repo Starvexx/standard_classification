@@ -447,9 +447,9 @@ class star:
         elif ((-1.6 < alpha) & (alpha < -0.3)):
             return "II"
         elif ((-2.5 < alpha) & (alpha < -1.6)):
-            return "III thin disc"
+            return "III thin disk"
         elif (alpha < -2.5):
-            return "III no disc / MS"
+            return "III no disk / MS"
         else:
             return "not classified"
     
