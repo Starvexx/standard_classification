@@ -93,7 +93,3 @@ def test_classify():
     assert s.classify(-2) == "III thin disk"
     assert s.classify(-3) == "III no disk / MS"
     assert s.classify(np.nan) == "not classified"
-
-    
-if __name__ == "__main__":
-    test_alpha_with_errors()
