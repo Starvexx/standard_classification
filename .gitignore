@@ -8,6 +8,7 @@ images/
 SED_plots/
 YSO_selection/
 dist/
+dist_old/
 docs/build/
 build/
 

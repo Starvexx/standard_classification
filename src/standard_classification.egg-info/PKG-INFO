@@ -1,9 +1,10 @@
 Metadata-Version: 2.1
 Name: standard_classification
-Version: 0.1.1b0
+Version: 0.1.3b0
 Summary: A tool to classify young stellar objects based on the Lada standard classification.
 Author-email: David Hernandez <david.hernandez@univie.ac.at>
 Project-URL: Homepage, https://github.com/Starvexx/standard_classification
+Project-URL: Documentation, https://standard-classification.readthedocs.io/en/latest/
 Requires-Python: >=3.10
 Description-Content-Type: text/markdown
 License-File: LICENSE
@@ -19,8 +20,8 @@ YSO standard classification
 This Python package is used to classify young stellar objects using the
 standard classification scheme originally devised by Lada et al. (1984).
 
-It determines the infrared spectral index \(\alpha_{IR}\) in the range
-from \(2\,\mu\mathrm{m}\) to \(20\,\mu\mathrm{m}\), estimating the slope
+It determines the infrared spectral index $\alpha_{IR}$ in the range
+from $2\,\mu\mathrm{m}$ to $20\,\mu\mathrm{m}$, estimating the slope
 of the spectral energy distribution. Based on the measured slope, the
 YSOs are divided into 5 distinct classes (0/I, flat spectrum, II,
 III with debris disk, III no disk/MS star).
