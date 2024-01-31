@@ -405,6 +405,29 @@ class star:
 
 
     def altAlpha(self, lower : list, upper : list) -> tuple:
+        """Work in progress...
+        
+        This functionality is not yet implemented.
+
+        Parameters
+        ----------
+            lower : list
+                The lower boundary of the wavelength range within
+                which the alpha index is computed.
+            upper : list
+                The upper boundary of the wavelength range within
+                which the alpha index is computed.
+
+        Returns
+        -------
+            alpha : float
+                The slope of the line in log-log space determining the
+                infrared spectral index for YSO classification.
+            intercept : float
+                The intercept of the line in log-log space. This can be
+                used to over plot the fitted function on the SED.
+            
+        """
         lower_mask = (self.wlngths > lower[0]) & (self.wlngths < lower[1])
         upper_mask = (self.wlngths > upper[0]) & (self.wlngths < upper[1])
         
