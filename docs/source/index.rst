@@ -23,4 +23,7 @@ Contents
 --------
 
 .. toctree::
+   installation
+   usage
    api/star
+   _autosummary/cls.classify

@@ -1,18 +1,8 @@
-﻿classify.classify
+﻿cls.classify
 =================
 
-.. automodule:: classify.classify
+.. automodule:: cls.classify
 
-   
-   
-   
-
-   
-   
-   
-
-   
-   
    .. rubric:: Classes
 
    .. autosummary::
