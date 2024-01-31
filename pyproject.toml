@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0",
+            "numpy>=1.25",
+            "astropy>=5.3",
+            "scipy>=1.10",
+            "tqdm>=4.66",
+            "matplotlib>=3.8.1"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.dynamic]
+version = {attr = "standard_classification.__version__"}
+
+[project]
+name = "standard_classification"
+dynamic = ["version"]
+description = "A tool to classify young stellar objects based on the Lada standard classification."
+authors = [
+    {name="David Hernandez", email="david.hernandez@univie.ac.at"},
+]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.25",
+    "astropy >=5.3",
+    "scipy >=1.10",
+    "tqdm >=4.66",
+    "matplotlib >=3.8.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/Starvexx/standard_classification"
