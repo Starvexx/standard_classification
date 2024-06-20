@@ -13,6 +13,8 @@ from matplotlib.colors import TABLEAU_COLORS as colors
 
 from tqdm import tqdm
 
+import warnings
+
 
 class star:
     """Star class.
@@ -50,7 +52,7 @@ class star:
         input catalog.
     """
 
-    def __init__(self, source : astropy.table.Row):
+    def __init__(self, source : astropy.table.Row, debug=False):
         """Class constructor.
         
         Constructs the instance of a star.
@@ -71,6 +73,9 @@ class star:
         self.fluxNames = []
         self.fluxErrNames = []
         self.lambdaNames = []
+        
+        if ~debug:
+            warnings.filterwarnings("ignore")
 
         #Get the names of the different columns holding the relevant
         #data. To compute the alpha index we need all columns
@@ -195,7 +200,7 @@ class star:
     def fluxDens2flux(self):
         """Converts flux densities to fluxes.
         
-        Does the conversion from Jansky (Jy) to erg / s / cm^2 / um
+        Does the conversion from Jansky (Jy) to erg / s / cm^2
 
         Returns
         -------
@@ -203,10 +208,10 @@ class star:
                 The converted fluxes. 
         """
 
-        self.fluxes = self.fluxDens * 1e-23 * 2.99792458e14 / (self.wlngths**2) * u.erg / u.s / u.cm**2 / u.um
+        self.fluxes = self.fluxDens * 1e-23 * 2.99792458e14 / (self.wlngths) * u.erg / u.s / u.cm**2
         
         
-        #self.fluxes = (self.fluxDens * u.Jy).to(u.erg / u.s / u.cm**2 / u.um,
+        #self.fluxes = (self.fluxDens * u.Jy).to(u.erg / u.s / u.cm**2
         #    equivalencies=u.spectral_density(self.wlngths * u.um))
 
         #return self.fluxes
@@ -215,7 +220,7 @@ class star:
     def fluxDensErr2fluxErr(self):
         """Converts flux density errors to flux errors.
         
-        Does the conversion from Jansky (Jy) to erg / s / cm^2 / um
+        Does the conversion from Jansky (Jy) to erg / s / cm^2
         
         Returns
         -------
@@ -223,9 +228,9 @@ class star:
                 Returns the converted flux errors.
         """
         
-        self.fluxErrs = self.fluxDensErrs * 1e-23 * 2.99792458e14 / (self.wlngths**2) * u.erg / u.s / u.cm**2 / u.um
+        self.fluxErrs = self.fluxDensErrs * 1e-23 * 2.99792458e14 / (self.wlngths) * u.erg / u.s / u.cm**2
         
-        #self.fluxErrs = (self.fluxDensErrs * u.Jy).to(u.erg / u.s / u.cm**2 / u.um,
+        #self.fluxErrs = (self.fluxDensErrs * u.Jy).to(u.erg / u.s / u.cm**2
         #        equivalencies=u.spectral_density(self.wlngths * u.um))
 
         #return self.fluxErrs
@@ -274,10 +279,19 @@ class star:
             self.wlMask = wlRangeMask
             key = f'{lower}-{upper}'
         else:
-            print("using mask")
             mask = Mask
+            hasFlux = ~np.isnan(self.fluxes)
+            hasFluxErr = ~np.isnan(self.fluxErrs)
+            mask = mask & hasFlux & hasFluxErr
+            
+        if np.sum(mask) < 2:
+            tqdm.write(f"Not enough data. Unable to compute alpha_{key}")
+            self.log_wl = np.log10(self.wlngths)
+            self.alpha[f"{key}"] = np.nan
+            self.intercept[f"{key}"] = np.nan
+            self.cls[key] = "not classified"
+            return self.alpha, self.intercept
 
-        print(key, np.sum(mask))
         
         # Check if there are enough data points to compute the alpha index.
         # If there are less than two return NaN values.
@@ -287,7 +301,8 @@ class star:
         # that provide measurement errors to compute the alpha index with ODR.
 
         self.log_wl = np.log10(self.wlngths)
-        
+
+        #tqdm.write(" WARNING!!! Not using errors. Check line 295 of classify.py")
         popt, pcov = optimize.curve_fit(self.__powerlaw,
                                         self.wlngths[mask],
                                         self.fluxes[mask].value,
@@ -296,39 +311,6 @@ class star:
         self.alpha[f"{key}"] = popt[0]
         self.intercept[f"{key}"] = popt[1]
 
-        #if (np.sum(mask) == 2):
-        #    if self.__wlClose(self.wlngths[mask][0],
-        #                      self.wlngths[mask][1],
-        #                      5):
-        #        self.alpha[f"{lower}-{upper}"] = np.nan
-        #        self.intercept[f"{lower}-{upper}"] = np.nan
-        #if (np.sum(wlRangeMask) <= 1) or (np.sum(mask) <= 1):
-        #    # Less than two measurements with errors. Using estimate.
-        #    self.alpha[f"{lower}-{upper}"] = np.nan
-        #    self.intercept[f"{lower}-{upper}"] = np.nan
-        #elif np.any(self.fluxErrs[wlRangeMask].value) and (np.sum(fullDataMask[wlRangeMask]) > 2):
-        #    # Has at least two measurements with errors. Using LSR on data
-        #    # with errors.
-        #    #mask = wlRangeMask & fullDataMask
-        #    self.log_wl = np.log10(self.wlngths[mask])
-
-        #    popt, pcov = optimize.curve_fit(self.__powerlaw,
-        #                                    self.wlngths[mask],
-        #                                    self.fluxes[mask],
-        #                                    sigma=self.fluxErrs[mask])
-        #    self.alpha[f"{lower}-{upper}"] = popt[0]
-        #    self.intercept[f"{lower}-{upper}"] = popt[1]
-        #else:
-        #    # All measurements have errors. Using full LSR.
-        #    self.log_wl = np.log10(self.wlngths[wlRangeMask])
-
-        #    popt, pcov = optimize.curve_fit(self.__powerlaw,
-        #                                    self.wlngths[wlRangeMask],
-        #                                    self.fluxes[wlRangeMask],
-        #                                    sigma=self.fluxErrs[wlRangeMask])
-        #    self.alpha[f"{lower}-{upper}"] = popt[0]
-        #    self.intercept[f"{lower}-{upper}"] = popt[1]
-        
         self.cls[key] = self.classify(self.alpha[key])
         return self.alpha, self.intercept
 
@@ -460,17 +442,6 @@ class star:
                             ls='--',
                             label="$\\alpha_{"+key+"}"+f" = {self.alpha[key]:.2f}"+"$")
 
-                    #print(self.intercept[f'key'])
-                    #ax.plot(wl_range,
-                    #        self.__powerlaw(wl_range,
-                    #                        self.alpha[f'josefa'],
-                    #                        self.intercept[f'josefa']),
-                    #        lw=0.5,
-                    #        color='red',
-                    #        alpha=a,
-                    #        ls='--',
-                    #        label="$\\alpha_{"+"josefa"+"}"+f" = {self.alpha['josefa']}"+"$")
-                    
 
             except KeyError as e:
                 tqdm.write(f'{e} not found. Skipping this range.')
@@ -479,21 +450,21 @@ class star:
                 #handles, labels = plt.gca().get_legend_handles_labels()
                 #handles.extend([missing_handle])
 
-
         wlRangeMask = (self.wlngths > lower) & (self.wlngths < upper)
-        fullDataMask = ~np.isnan(self.fluxErrs)
-        mask = wlRangeMask & fullDataMask
-
+        hasError = ~np.isnan(self.fluxErrs)
+        mask = wlRangeMask & hasError
+        
         if np.sum(np.isnan(self.fluxes)) == len(self.fluxes):
             tqdm.write(f"Empty data: skipping plot for source nr.: {int(self.srcID):4d}")
             return
+
         ax.scatter(self.wlngths[mask],
                    self.fluxes[mask],
                    marker=".",
                    c='r')
         ax.errorbar(self.wlngths,
                     self.fluxes,
-                    yerr=self.fluxErrs*1,
+                    yerr=self.fluxErrs,
                     fmt='.',
                     ecolor='k',
                     elinewidth=0.75,
@@ -507,9 +478,9 @@ class star:
 
         c = self.cls[list(self.cls.keys())[0]]
 
-        fig.suptitle(f"Source ID: {int(self.srcID):04d}"+"\n"+f"Class: {c} | Josefa: {self.cls['josefa']}")
-        ax.set_xlabel('$\log_{10}\lambda [\mathrm{\mu m}]$')
-        ax.set_ylabel('$\log_{10}\\left(\lambda F_\lambda \\left[\\frac{\mathrm{erg}}{\mathrm{s\,cm}^2}\\right]\\right)$')
+        fig.suptitle(f"Source ID: {int(self.srcID):04d}"+"\n"+f"Class: {c}")
+        ax.set_xlabel('$\lambda [\mathrm{\mu m}]$')
+        ax.set_ylabel('$\lambda F_\lambda \\left[\\frac{\mathrm{erg}}{\mathrm{s\,cm}^2}\\right]$')
         ax.set_xlim(10**(-0.5), 10**3)
         try:
             ax.set_ylim(10**(np.nanmean(np.log10(self.fluxes.value))-3),
@@ -521,15 +492,14 @@ class star:
         ax.axvspan(10**-0.5, lower, alpha=0.1, color='gray')
         ax.axvspan(upper, 10**3, alpha=0.1, color='gray')
         
-        print(self.lambdaNames)
         
-        t = np.array([10**-14, 3*10**-13, 10**-14, 3*10**-13, 10**-14, 3*10**-13, 10**-14, 3*10**-13, 10**-14, 3*10**-13, 10**-14, 10**-13])
-        t = self.fluxes.value + (self.fluxes.value * 20)
-        labels = [self.lambdaNames[i].replace('_lambda', '') for i in range(len(self.wlngths))]
+        #t = np.array([10**-14, 3*10**-13, 10**-14, 3*10**-13, 10**-14, 3*10**-13, 10**-14, 3*10**-13, 10**-14, 3*10**-13, 10**-14, 10**-13])
+        #t = self.fluxes.value + (self.fluxes.value * 20)
+        #labels = [self.lambdaNames[i].replace('_lambda', '') for i in range(len(self.wlngths))]
         
-        for i in range(len(self.wlngths)):
-            ax.vlines(self.wlngths[i], t[i], self.fluxes[i].value, color='k', alpha=0.4, lw=0.5)
-            ax.text(self.wlngths[i], t[i], labels[i], fontsize=5, rotation=0)
+        #for i in range(len(self.wlngths)):
+        #    ax.vlines(self.wlngths[i], t[i], self.fluxes[i].value, color='k', alpha=0.4, lw=0.5)
+        #    ax.text(self.wlngths[i], t[i], labels[i], fontsize=5, rotation=0)
 
         plt.tight_layout()
         fmt = savepath.split('.')[-1]
