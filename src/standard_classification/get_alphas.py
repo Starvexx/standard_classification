@@ -35,9 +35,12 @@ def main():
             default='')
     #args = parser.parse_args()
     args = parser.parse_args([
-        '-i', '../data/raw_data/Orion_YSO_fluxes_24Jul23.csv',
-        '-o', '../data/processed_data/Orion_YSO_fluxes_24Jul23_classified.csv',
-        '-d', '../SED_plots'])
+        #'-i', '/home/starvexx/Nemesis/Data/NEMESIS_SEDs/Orion_YSO_fluxes_Jy_8May24.csv',
+        '-i', '/home/starvexx/Nemesis/SOM_final/data/SEDs/Josefa_fluxes.csv',
+        #'-o', '/home/starvexx/Nemesis/SOM_final/data/SEDs/NEMESIS_YSOs_classified.csv',
+        '-o', '/home/starvexx/Nemesis/SOM_final/data/SEDs/Josefa_YSOs_classified.csv',
+        '-p',
+        '-d', '/home/starvexx/Nemesis/SED_plots_josefa'])
 
     in_path = os.path.abspath(args.input_table)
     out_path = os.path.abspath(args.output_table)
@@ -55,75 +58,98 @@ def main():
 
     data = Table.read(in_path)
 
-    stars = []
-    print('\nreading Data...\n')
-    #for source in tqdm(data[11085:11086]):
-    for source in tqdm(data):
-        stars.append(star(source))
-
     src_id = []
     ra = []
     dec = []
-    alpha = []
-    intercept = []
-    alpha_est = []
-    intercept_est = []
-    cls = []
-    cls_est = []
 
-    s = stars[1]
-    s.fluxDens2flux()
+    alpha_2_24 = []
+    intercept_2_24 = []
+    cls_2_24 = []
+    alpha_josefa = []
+    intercept_josefa = []
+
+    alpha_2_10 = []
+    intercept_2_10 = []
+    cls_2_10 = []
+
+    alpha_10_24 = []
+    intercept_10_24 = []
+    cls_10_24 = []
+
     
-    #print(s.fluxes)
-    #print(s.wlngths)
-    #s.altAlpha([1,2], [90, 200])
-    #exit(9)
+    wl_names = [key for key in data.colnames if 'lambda' in key]
+    print(wl_names)
+    mask = np.zeros(len(wl_names), dtype=bool)
+    for i, wl in enumerate(wl_names):
+        if 'irac' in wl or 'mips' in wl or 'Ks' in wl:
+            mask[i] = True
 
+    mask = np.array([0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1], dtype=bool)
+    irac = np.array([0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0], dtype=bool)
+            
     print('\nDone reading!\n\nCrunching numbers ...\n')
-    for s in tqdm(stars):
+    for source in tqdm(data[0:1]):
+        s = star(source)
         if len(s.fluxDens) != 0:
-            #s.fluxDens2flux()
-            s.getAlphaWithErrors(2, 20)
-            s.getAlphaWithErrors(2, 10)
-            s.getAlphaWithErrors(10, 25)
-            #print(s.getAlpha(2, 20))
+            s.getAlphaWithErrors(2, 24)
+            s.getAlphaWithErrors(Mask=mask, key='2and24')
+            s.getAlphaWithErrors(Mask=irac, key='irac')
+            #s.getAlphaWithErrors(2, 10)
+            #s.getAlphaWithErrors(10, 24)
+            s.alpha['josefa'] = source['alphaKM']
+            s.intercept['josefa'] = s.intercept['2-24']
+            s.cls['josefa'] = source['Class'].split("'")[1]
 
             if store_plots:
-                s.plot(plot_dir, 2, 20)
+                s.plot(plot_dir)#, ['2-24', '2-24no-err', 'josefa'])
 
+            tqdm.write('Source ID: {}'.format(s.srcID))
+            
             src_id.append(s.srcID)
             ra.append(s.ra)
             dec.append(s.dec)
-            alpha.append(s.alpha['2-20'])
-            alpha_est.append(s.alpha['2-20_est'])
-            intercept.append(s.intercept['2-20'])
-            intercept_est.append(s.intercept['2-20_est'])
-            cls.append(s.cls['2-20'])
-            cls_est.append(s.cls['2-20_est'])
 
-    results = [src_id,
-               ra]
+            alpha_2_24.append(s.alpha['2-24'])
+            intercept_2_24.append(s.intercept['2-24'])
+            cls_2_24.append(s.cls['2-24'])
 
-    t = Table(
-            data=[src_id,
-                  ra,
-                  dec,
-                  alpha_est,
-                  alpha,
-                  intercept_est,
-                  intercept,
-                  cls,
-                  cls_est],
-            names=('Internal_ID',
-                   'RA',
-                   'DE',
-                   'alpha_est',
-                   'alpha',
-                   'intercept_est',
-                   'intercept',
-                   'class',
-                   'class_est'))
-    t.write(out_path, format='csv', overwrite=True)
+            #alpha_2_10.append(s.alpha['2-10'])
+            #intercept_2_10.append(s.intercept['2-10'])
+            #cls_2_10.append(s.cls['2-10'])
+            
+            #alpha_10_24.append(s.alpha['10-24'])
+            #intercept_10_24.append(s.intercept['10-24'])
+            #cls_10_24.append(s.cls['10-24'])
+
+
+    #t = Table(
+    #        data=[src_id,
+    #              ra,
+    #              dec,
+    #              alpha_2_24,
+    #              intercept_2_24,
+    #              cls_2_24,
+    #              alpha_2_10,
+    #              intercept_2_10,
+    #              cls_2_10,
+    #              alpha_10_24,
+    #              intercept_10_24,
+    #              cls_10_24],
+    #        names=('Internal_ID',
+    #               'RA',
+    #               'DE',
+    #               'alpha_2_24',
+    #               'intercept_2_24',
+    #               'class_2_24',
+    #               'alpha_2_10',
+    #               'intercept_2_10',
+    #               'class_2_10',
+    #               'alpha_10_24',
+    #               'intercept_10_24',
+    #               'class_10_24'))#,
+    #t.write(out_path, format='csv', overwrite=True)
+    
+    del s
 
 
 if __name__ == "__main__":

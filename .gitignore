@@ -26,6 +26,8 @@ build/
 **/*.fit
 **/*.fits
 
+**/classify_old_11th_of_June_2024.py
+
 
 # Allow
 

@@ -3,13 +3,13 @@ from __future__ import annotations
 import numpy as np
 
 import astropy
-from astropy.table import Row
 from astropy import units as u
 
 from scipy import optimize
 from scipy import odr
 
 from matplotlib import pyplot as plt
+from matplotlib.colors import TABLEAU_COLORS as colors
 
 from tqdm import tqdm
 
@@ -72,20 +72,19 @@ class star:
         self.fluxErrNames = []
         self.lambdaNames = []
 
-        # Get the names of the different columns holding the relevant
-        # data. To compute the alpha index we need all columns
-        # containing flux, flux errors, as well as their respective
-        # wavelengths, lambda.
+        #Get the names of the different columns holding the relevant
+        #data. To compute the alpha index we need all columns
+        #containing flux, flux errors, as well as their respective
+        #wavelengths, lambda.
 
-        for name in self.__data.colnames[4::]:
-            if (name[-4::] == 'flux'):
+        for name in self.__data.colnames:
+            if ('flux' in name and 'error' not in name):
                 self.fluxNames.append(name)
-            elif name[-10::] == 'flux_error':
+            elif 'flux_error' in name:
                 self.fluxErrNames.append(name)
-            elif name[-6::] == 'lambda':
+            elif 'lambda' in name:
                 self.lambdaNames.append(name)
-                
-        
+
 
         # Extract the columns holding the flux measurements (Jy) from the table.
         self.fluxDens = np.array([col for col in self.__data[self.fluxNames].as_void()])
@@ -95,6 +94,10 @@ class star:
         self.fluxDens[self.fluxDens == 0] = np.nan
         self.fluxDensErrs[self.fluxDensErrs == 0] = np.nan
         self.wlngths[self.wlngths == 0] = np.nan
+
+        self.fluxDens2flux()
+        self.fluxDensErr2fluxErr()
+
 
 
     def __line(self, x : float, k : float, d : float) -> float:
@@ -122,7 +125,7 @@ class star:
         return (k * x) + d
 
 
-    def __powerlaw(self, param : ArrayLike, x : float) -> float:
+    def __powerlaw(self, x : float, k : float, d : float) -> float:
         """Powerlaw representing a line in log-log space.
         
         This method is the powerlaw representation of a line in double
@@ -143,8 +146,12 @@ class star:
             float
                 The powerlaw evaluated at wavelength x.
         """
-        k, d = param[0], param[1]
-        return 10 ** (k * np.log10(x) + d)
+        if (x <= 0).any():
+            x_copy = x.copy()
+            x_copy[x <= 0] = np.nan
+            return 10 ** (k * np.log10(x_copy) + d)
+        else:
+            return 10 ** (k * np.log10(x) + d)
     
 
     def __wlClose(self, wl1: float, wl2: float, threshold: float) -> bool:
@@ -195,10 +202,14 @@ class star:
             fluxes : float
                 The converted fluxes. 
         """
-        self.fluxes = (self.fluxDens * u.Jy).to(u.erg / u.s / u.cm**2 / u.um,
-                equivalencies=u.spectral_density(self.wlngths * u.um))
 
-        return self.fluxes
+        self.fluxes = self.fluxDens * 1e-23 * 2.99792458e14 / (self.wlngths**2) * u.erg / u.s / u.cm**2 / u.um
+        
+        
+        #self.fluxes = (self.fluxDens * u.Jy).to(u.erg / u.s / u.cm**2 / u.um,
+        #    equivalencies=u.spectral_density(self.wlngths * u.um))
+
+        #return self.fluxes
 
 
     def fluxDensErr2fluxErr(self):
@@ -211,93 +222,16 @@ class star:
             fluxErrs : float
                 Returns the converted flux errors.
         """
-        self.fluxErrs = (self.fluxDensErrs * u.Jy).to(u.erg / u.s / u.cm**2 / u.um,
-                equivalencies=u.spectral_density(self.wlngths * u.um))
-
-        return self.fluxErrs
-
-
-    def estimateAlpha(self, lower : int, upper : int) -> tuple[float, float]:
-        """Estimates the alpha index.
-         
-        This method computes the infrared alpha index in the chosen
-        wavelength range by least squares fitting a line to the SED as
-        a first estimate of the alpha index.
-
-        Parameters
-        ----------
-            lower : int
-                The lower boundary of the wavelength range for the 
-                least squares fit.
-            upper : int
-                The upper boundary of the wavelength range for the
-                least squares fit.
-
-        Returns
-        -------
-            alpha : float
-                The estimated slope of the least squares line fit
-                which determines the alpha index.
-            intercept : float
-                The estimated intercept from the least squares line
-                fit. can be used to over plot the line on a SED plot.
         
-        """
-        # Convert the flux density and flux density errors
-        self.fluxDens2flux()
-        self.fluxDensErr2fluxErr()
+        self.fluxErrs = self.fluxDensErrs * 1e-23 * 2.99792458e14 / (self.wlngths**2) * u.erg / u.s / u.cm**2 / u.um
+        
+        #self.fluxErrs = (self.fluxDensErrs * u.Jy).to(u.erg / u.s / u.cm**2 / u.um,
+        #        equivalencies=u.spectral_density(self.wlngths * u.um))
 
-        # Get the mask to select data in the selected wavelength range.
-        wlRangeMask = (self.wlngths > lower) & (self.wlngths < upper)
-
-        if np.sum(wlRangeMask) <= 1:
-            # If there is at most one viable flux measurement, the source
-            # is not classifiable; store NaN values.
-            self.alpha[f"{lower}-{upper}_est"] = np.nan
-            self.intercept[f"{lower}-{upper}_est"] = np.nan
-        elif (np.sum(wlRangeMask) == 2):
-            # compute the relative difference between the two wavelengths.
-            rel_wl_diff = self.wlngths[wlRangeMask][0] / self.wlngths[wlRangeMask][1]
-            
-            # If they are within 5% of the shorter wavelength the source is
-            # not classifiable. Do the least squares fit otherwise.
-            #if (1 - rel_wl_diff) < 0.05:
-            if self.__wlClose(self.wlngths[wlRangeMask][0],
-                              self.wlngths[wlRangeMask][1],
-                              5):
-                # If the measurements are too close to each other wavelength
-                # wise, the source is not classifiable; store NaN values.
-                self.alpha[f"{lower}-{upper}_est"] = np.nan
-                self.intercept[f"{lower}-{upper}_est"] = np.nan
-            else:
-                # get the log wavelengths in the selected wavelength range.
-                self.log_wl = np.log10(self.wlngths[wlRangeMask])
-                # get the log fluxes in the selected wavelength range.
-                self.log_fluxes = np.log10(self.fluxes[wlRangeMask].value)
-
-                # Do the least squares line fit and store the ruslts.
-                opt, _ = optimize.curve_fit(self.__line, self.log_wl, self.log_fluxes)
-                self.alpha[f"{lower}-{upper}_est"] = opt[0]
-                self.intercept[f"{lower}-{upper}_est"] = opt[1]
-                # Free memory for garbage collection.
-                del opt
-        else:
-            # get the log wavelengths in the selected wavelength range.
-            self.log_wl = np.log10(self.wlngths[wlRangeMask])
-            # get the log fluxes in the selected wavelength range.
-            self.log_fluxes = np.log10(self.fluxes[wlRangeMask].value)
-
-            # Do the least squares line fit and store the results.
-            opt, _ = optimize.curve_fit(self.__line, self.log_wl, self.log_fluxes)
-            self.alpha[f"{lower}-{upper}_est"] = opt[0]
-            self.intercept[f"{lower}-{upper}_est"] = opt[1]
-            # Free memory for garbage collection.
-            del opt
-
-        return self.alpha, self.intercept
+        #return self.fluxErrs
 
 
-    def getAlphaWithErrors(self, lower : float, upper : float) -> tuple:
+    def getAlphaWithErrors(self, lower : float = None, upper : float = None, Mask : np.ndarray = None, key : str = '') -> tuple:
         """Computes the alpha index considering errors.
         
         Computes the infrared spectral index also regarding measurement
@@ -329,18 +263,22 @@ class star:
                 The intercept of the line in log-log space. This can be
                 used to over plot the fitted function on the SED.
         """
-        # Get the initial estimate for the ODR fit from a least squares fit.
-        self.estimateAlpha(lower, upper)
+        if Mask is None and (lower is not None or upper is not None):
+            # Get the selection masks for the selected wavelength range.
+            wlRangeMask = (self.wlngths > lower) & (self.wlngths < upper)
+            # Get the selection mask for all measurements that have errors.
+            hasError = ~np.isnan(self.fluxErrs)
+            # Get the selection mask for the data used in the ODR fit.
+            mask = wlRangeMask & hasError
+            # Store the selection mask for the data in the selected wavelength range.
+            self.wlMask = wlRangeMask
+            key = f'{lower}-{upper}'
+        else:
+            print("using mask")
+            mask = Mask
 
-        # Get the selection masks for the selected wavelength range.
-        wlRangeMask = (self.wlngths > lower) & (self.wlngths < upper)
-        # Get the selection mask for all measurements that have errors.
-        fullDataMask = ~np.isnan(self.fluxErrs)
-        # Get the selection mask for the data used in the ODR fit.
-        odrMask = wlRangeMask & fullDataMask
-        # Store the selection mask for the data in the selected wavelength range.
-        self.wlMask = wlRangeMask
-
+        print(key, np.sum(mask))
+        
         # Check if there are enough data points to compute the alpha index.
         # If there are less than two return NaN values.
         # If there are only two measurements but there is at least one
@@ -348,59 +286,50 @@ class star:
         # If there are at least two measurements with errors, use only those
         # that provide measurement errors to compute the alpha index with ODR.
 
-        if (np.sum(odrMask) == 2):
-            if self.__wlClose(self.wlngths[odrMask][0],
-                              self.wlngths[odrMask][1],
-                              5):
-                self.alpha[f"{lower}-{upper}"] = self.alpha[f"{lower}-{upper}_est"]
-                self.intercept[f"{lower}-{upper}"] = self.intercept[f"{lower}-{upper}_est"]
-        if (np.sum(wlRangeMask) <= 1) or (np.sum(odrMask) <= 1):
-            # Less than two measurements with errors. Using estimate.
-            self.alpha[f"{lower}-{upper}"] = self.alpha[f"{lower}-{upper}_est"]
-            self.intercept[f"{lower}-{upper}"] = self.intercept[f"{lower}-{upper}_est"]
-        elif np.any(self.fluxErrs[wlRangeMask].value) and (np.sum(fullDataMask[wlRangeMask]) > 2):
-            # Has at least two measurements with errors. Using ODR on data
-            # with errors.
-            mask = wlRangeMask & fullDataMask
-            self.log_wl = np.log10(self.wlngths[mask])
-
-            b_0 = [self.alpha[f"{lower}-{upper}_est"],
-                   self.intercept[f"{lower}-{upper}_est"]]
-
-            pl = odr.Model(self.__powerlaw)
-            myData = odr.RealData(
-                    self.wlngths[mask],
-                    self.fluxes[mask],
-                    sy=self.fluxErrs[mask])
-            myODR = odr.ODR(myData, pl, beta0=b_0)
-            results = myODR.run()
-
-            self.alpha[f"{lower}-{upper}"] = results.beta[0]
-            self.intercept[f"{lower}-{upper}"] = results.beta[1]
-            del myODR
-            del results
-        else:
-            # All measurements have errors. Using full ODR.
-            self.log_wl = np.log10(self.wlngths[wlRangeMask])
-
-            b_0 = [self.alpha[f"{lower}-{upper}_est"],
-                   self.intercept[f"{lower}-{upper}_est"]]
-
-            pl = odr.Model(self.__powerlaw)
-            myData = odr.RealData(
-                    self.wlngths[wlRangeMask],
-                    self.fluxes[wlRangeMask],
-                    sy=self.fluxErrs[wlRangeMask])
-            myODR = odr.ODR(myData, pl, beta0=b_0)
-            results = myODR.run()
-
-            self.alpha[f"{lower}-{upper}"] = results.beta[0]
-            self.intercept[f"{lower}-{upper}"] = results.beta[1]
-            del myODR
-            del results
+        self.log_wl = np.log10(self.wlngths)
         
-        self.cls[f'{lower}-{upper}_est'] = self.classify(self.alpha[f'{lower}-{upper}_est'])
-        self.cls[f'{lower}-{upper}'] = self.classify(self.alpha[f'{lower}-{upper}'])
+        popt, pcov = optimize.curve_fit(self.__powerlaw,
+                                        self.wlngths[mask],
+                                        self.fluxes[mask].value,
+                                        sigma=self.fluxErrs[mask].value)
+        
+        self.alpha[f"{key}"] = popt[0]
+        self.intercept[f"{key}"] = popt[1]
+
+        #if (np.sum(mask) == 2):
+        #    if self.__wlClose(self.wlngths[mask][0],
+        #                      self.wlngths[mask][1],
+        #                      5):
+        #        self.alpha[f"{lower}-{upper}"] = np.nan
+        #        self.intercept[f"{lower}-{upper}"] = np.nan
+        #if (np.sum(wlRangeMask) <= 1) or (np.sum(mask) <= 1):
+        #    # Less than two measurements with errors. Using estimate.
+        #    self.alpha[f"{lower}-{upper}"] = np.nan
+        #    self.intercept[f"{lower}-{upper}"] = np.nan
+        #elif np.any(self.fluxErrs[wlRangeMask].value) and (np.sum(fullDataMask[wlRangeMask]) > 2):
+        #    # Has at least two measurements with errors. Using LSR on data
+        #    # with errors.
+        #    #mask = wlRangeMask & fullDataMask
+        #    self.log_wl = np.log10(self.wlngths[mask])
+
+        #    popt, pcov = optimize.curve_fit(self.__powerlaw,
+        #                                    self.wlngths[mask],
+        #                                    self.fluxes[mask],
+        #                                    sigma=self.fluxErrs[mask])
+        #    self.alpha[f"{lower}-{upper}"] = popt[0]
+        #    self.intercept[f"{lower}-{upper}"] = popt[1]
+        #else:
+        #    # All measurements have errors. Using full LSR.
+        #    self.log_wl = np.log10(self.wlngths[wlRangeMask])
+
+        #    popt, pcov = optimize.curve_fit(self.__powerlaw,
+        #                                    self.wlngths[wlRangeMask],
+        #                                    self.fluxes[wlRangeMask],
+        #                                    sigma=self.fluxErrs[wlRangeMask])
+        #    self.alpha[f"{lower}-{upper}"] = popt[0]
+        #    self.intercept[f"{lower}-{upper}"] = popt[1]
+        
+        self.cls[key] = self.classify(self.alpha[key])
         return self.alpha, self.intercept
 
 
@@ -477,7 +406,7 @@ class star:
             return "not classified"
     
 
-    def plot(self, savepath, lower=None, upper=None):
+    def plot(self, savepath, keys=None, lower=2, upper=24):
         """Plots the data.
 
         This methods plots the SED of the source including any the
@@ -493,25 +422,9 @@ class star:
             upper : array_like
                 The upper limits of the ranges for the alpha indices.
         """
-
-        # Check if the lower and upper boundaries are of the correct
-        # type and convert to numpy array if not.
-        try:
-            assert isinstance(lower, (tuple, np.ndarray, list))
-            assert isinstance(upper, (tuple, np.ndarray, list))
-        except AssertionError:
-            lower = np.array([lower])
-            upper = np.array([upper])
-
         # If no values for the lower and upper boundary are provided, 
-        if (lower == None) or (upper == None):
-            key = list(self.alpha.keys())[0]
-            if "_est" in key:
-                lower = [int(key.split("_")[0].split('-')[0])]
-                upper = [int(key.split("_")[0].split('-')[1])]
-            else:
-                lower = [int(key.split('-')[0])]
-                upper = [int(key.split('-')[1])]
+        if (keys == None):
+            keys = list(self.alpha.keys())
                     
         savepath = savepath + f'/{self.srcID:05d}.png'
 
@@ -525,40 +438,57 @@ class star:
 
         ax = fig.add_subplot(111)
 
-        for l, u in zip(lower, upper):
+        for i, key in enumerate(keys):
+            if i == 0:
+                c = 'k'
+                a = 1
+            else:
+                c = colors[list(colors.keys())[i]]
+                a = 0.5
+            
             try:
-                if ~np.isnan(self.alpha[f'{l}-{u}']):
+                if ~np.isnan(self.alpha[key]):
                     wl_range = np.linspace(0.5, 1000, 100)
 
                     ax.plot(wl_range,
-                            self.__powerlaw(
-                                [self.alpha[f'{l}-{u}'],
-                                 self.intercept[f'{l}-{u}']],
-                                wl_range),
+                            self.__powerlaw(wl_range,
+                                            self.alpha[key],
+                                            self.intercept[key]),
                             lw=0.5,
-                            color='k',
+                            color=c,
+                            alpha=a,
                             ls='--',
-                            label="$\\alpha_{"+str(l)+"-"+str(u)+"}$")
+                            label="$\\alpha_{"+key+"}"+f" = {self.alpha[key]:.2f}"+"$")
 
-                    ax.plot(wl_range,
-                            self.__powerlaw(
-                                [self.alpha[f'{l}-{u}_est'],
-                                 self.intercept[f'{l}-{u}_est']],
-                                wl_range),
-                            lw=0.5,
-                            color='k',
-                            ls='-.',
-                            label="$\\alpha_{"+str(l)+"-"+str(u)+"}$ est")
+                    #print(self.intercept[f'key'])
+                    #ax.plot(wl_range,
+                    #        self.__powerlaw(wl_range,
+                    #                        self.alpha[f'josefa'],
+                    #                        self.intercept[f'josefa']),
+                    #        lw=0.5,
+                    #        color='red',
+                    #        alpha=a,
+                    #        ls='--',
+                    #        label="$\\alpha_{"+"josefa"+"}"+f" = {self.alpha['josefa']}"+"$")
+                    
 
             except KeyError as e:
                 tqdm.write(f'{e} not found. Skipping this range.')
+                #missing_handle = Line2D([0], [0], label='manual line', color=c, lw=0.5, alpha=a)
+                ## access legend objects automatically created from data
+                #handles, labels = plt.gca().get_legend_handles_labels()
+                #handles.extend([missing_handle])
 
 
-        if np.sum(np.isnan(self.fluxes[self.wlMask])) == len(self.fluxes[self.wlMask]):
-            tqdm.write("Empty data: skipping plot...")
+        wlRangeMask = (self.wlngths > lower) & (self.wlngths < upper)
+        fullDataMask = ~np.isnan(self.fluxErrs)
+        mask = wlRangeMask & fullDataMask
+
+        if np.sum(np.isnan(self.fluxes)) == len(self.fluxes):
+            tqdm.write(f"Empty data: skipping plot for source nr.: {int(self.srcID):4d}")
             return
-        ax.scatter(self.wlngths[self.wlMask],
-                   self.fluxes[self.wlMask],
+        ax.scatter(self.wlngths[mask],
+                   self.fluxes[mask],
                    marker=".",
                    c='r')
         ax.errorbar(self.wlngths,
@@ -575,17 +505,31 @@ class star:
         ax.set_yscale('log')
         ax.legend(loc="upper right")
 
+        c = self.cls[list(self.cls.keys())[0]]
 
-        fig.suptitle(f"Source ID: {int(self.srcID):04d}") #\nClass {args[0]['class_kiwm']}\t$\\alpha = {slopes[-1]:.2f}$")
-        ax.set_xlabel('$\lambda [\mathrm{\mu m}]$')
-        ax.set_ylabel('$\log\\left(\lambda F_\lambda \\left[\\frac{\mathrm{erg}}{\mathrm{s\,cm}^2}\\right]\\right)$')
+        fig.suptitle(f"Source ID: {int(self.srcID):04d}"+"\n"+f"Class: {c} | Josefa: {self.cls['josefa']}")
+        ax.set_xlabel('$\log_{10}\lambda [\mathrm{\mu m}]$')
+        ax.set_ylabel('$\log_{10}\\left(\lambda F_\lambda \\left[\\frac{\mathrm{erg}}{\mathrm{s\,cm}^2}\\right]\\right)$')
         ax.set_xlim(10**(-0.5), 10**3)
         try:
-            ax.set_ylim(10**(np.nanmean(np.log10(self.fluxes.value))-2),
-                        10**(np.nanmean(np.log10(self.fluxes.value))+2))
+            ax.set_ylim(10**(np.nanmean(np.log10(self.fluxes.value))-3),
+                        10**(np.nanmean(np.log10(self.fluxes.value))+3))
         except:
             ax.set_ylim(10**(np.nanmin(np.log10(self.fluxes.value))),
                         10**(np.nanmax(np.log10(self.fluxes.value))))
+
+        ax.axvspan(10**-0.5, lower, alpha=0.1, color='gray')
+        ax.axvspan(upper, 10**3, alpha=0.1, color='gray')
+        
+        print(self.lambdaNames)
+        
+        t = np.array([10**-14, 3*10**-13, 10**-14, 3*10**-13, 10**-14, 3*10**-13, 10**-14, 3*10**-13, 10**-14, 3*10**-13, 10**-14, 10**-13])
+        t = self.fluxes.value + (self.fluxes.value * 20)
+        labels = [self.lambdaNames[i].replace('_lambda', '') for i in range(len(self.wlngths))]
+        
+        for i in range(len(self.wlngths)):
+            ax.vlines(self.wlngths[i], t[i], self.fluxes[i].value, color='k', alpha=0.4, lw=0.5)
+            ax.text(self.wlngths[i], t[i], labels[i], fontsize=5, rotation=0)
 
         plt.tight_layout()
         fmt = savepath.split('.')[-1]
