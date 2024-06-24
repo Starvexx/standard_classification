@@ -37,9 +37,9 @@ def main():
     args = parser.parse_args([
         '-i', '/home/starvexx/Nemesis/Data/NEMESIS_SEDs/Orion_YSO_fluxes_Jy_19Jun24count_update.csv',
         #'-i', '/home/starvexx/Nemesis/SOM_final/data/SEDs/Josefa_fluxes.csv',
-        '-o', '/home/starvexx/Nemesis/SOM_final/data/SEDs/NEMESIS_YSOs_classified.csv',
+        '-o', '/home/starvexx/Nemesis/Data/NEMESIS_SEDs/classified.csv',
         #'-o', '/home/starvexx/Nemesis/SOM_final/data/SEDs/Josefa_YSOs_classified.csv',
-        #'-p',
+        '-p',
         '-d', '/home/starvexx/Nemesis/SED_plots'])
 
     in_path = os.path.abspath(args.input_table)
@@ -88,7 +88,10 @@ def main():
 
 
     print('\nDone reading!\n\nCrunching numbers ...\n')
-    for source in tqdm(data):
+    #bar = tqdm(data[data["Internal_ID"] == 27787])
+    bar = tqdm(data)
+    for source in bar:
+        bar.set_description(f"Source ID: {source['Internal_ID']}")
         s = star(source)
         if len(s.fluxDens) != 0:
             s.getAlphaWithErrors(2, 24)
@@ -103,8 +106,6 @@ def main():
             if store_plots:
                 s.plot(plot_dir)
 
-            tqdm.write('Source ID: {}'.format(s.srcID))
-            
             src_id.append(s.srcID)
             ra.append(s.ra)
             dec.append(s.dec)

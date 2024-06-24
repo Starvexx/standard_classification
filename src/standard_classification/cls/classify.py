@@ -6,7 +6,7 @@ import astropy
 from astropy import units as u
 
 from scipy import optimize
-from scipy import odr
+from scipy.optimize import Bounds
 
 from matplotlib import pyplot as plt
 from matplotlib.colors import TABLEAU_COLORS as colors
@@ -73,8 +73,10 @@ class star:
         self.fluxNames = []
         self.fluxErrNames = []
         self.lambdaNames = []
+
+        self.debug = debug
         
-        if ~debug:
+        if ~self.debug:
             warnings.filterwarnings("ignore")
 
         #Get the names of the different columns holding the relevant
@@ -188,14 +190,11 @@ class star:
                 to each other and False otherwise.
         """
         if 0 < threshold < 100:
-            rel_wl_diff = 1 - (wl1 / wl2)
-            if rel_wl_diff < (threshold / 100):
+            condition = (wl2 - wl1) < threshold
+            if condition:
                 return True
             else:
                 return False
-        else:
-            raise ValueError("threshold must be a real number between 0 and 100")
-
    
     def fluxDens2flux(self):
         """Converts flux densities to fluxes.
@@ -268,25 +267,45 @@ class star:
                 The intercept of the line in log-log space. This can be
                 used to over plot the fitted function on the SED.
         """
+
+        # If no user defined mask to selected the data is provided, the
+        # mask is created from the lower and upper boundaries of the
+        # wavelength range. If the mask is provided, the mask is used
+        # to select the data for the fit.
         if Mask is None and (lower is not None or upper is not None):
             # Get the selection masks for the selected wavelength range.
             wlRangeMask = (self.wlngths > lower) & (self.wlngths < upper)
             # Get the selection mask for all measurements that have errors.
-            hasError = ~np.isnan(self.fluxErrs)
+            #hasError = ~np.isnan(self.fluxErrs)
             # Get the selection mask for the data used in the ODR fit.
-            mask = wlRangeMask & hasError
+            mask = wlRangeMask # & hasError
             # Store the selection mask for the data in the selected wavelength range.
-            self.wlMask = wlRangeMask
+            #self.wlMask = wlRangeMask
             key = f'{lower}-{upper}'
         else:
             mask = Mask
-            hasFlux = ~np.isnan(self.fluxes)
-            hasFluxErr = ~np.isnan(self.fluxErrs)
-            mask = mask & hasFlux & hasFluxErr
-            
+            #hasFlux = ~np.isnan(self.fluxes)
+            #hasFluxErr = ~np.isnan(self.fluxErrs)
+            #mask = mask & hasFlux & hasFluxErr
+
+        
+        # Check if there are enough data points to compute the alpha index.
+        # If there are less than two return NaN values.
+        # If there are only two measurements check if they are too close
+        # to each other. If they are, return NaN values.
         if np.sum(mask) < 2:
-            tqdm.write(f"Not enough data. Unable to compute alpha_{key}")
+            if self.debug:
+                tqdm.write(f"Not enough data. Unable to compute alpha_{key}")
             self.log_wl = np.log10(self.wlngths)
+            self.alpha[f"{key}"] = np.nan
+            self.intercept[f"{key}"] = np.nan
+            self.cls[key] = "not classified"
+            return self.alpha, self.intercept
+        
+        wl_max = np.nanmax(self.wlngths[mask])
+        wl_min = np.nanmin(self.wlngths[mask])
+        
+        if self.__wlClose(wl_min, wl_max, 2):
             self.alpha[f"{key}"] = np.nan
             self.intercept[f"{key}"] = np.nan
             self.cls[key] = "not classified"
@@ -301,12 +320,33 @@ class star:
         # that provide measurement errors to compute the alpha index with ODR.
 
         self.log_wl = np.log10(self.wlngths)
+        
 
-        #tqdm.write(" WARNING!!! Not using errors. Check line 295 of classify.py")
-        popt, pcov = optimize.curve_fit(self.__powerlaw,
-                                        self.wlngths[mask],
-                                        self.fluxes[mask].value,
-                                        sigma=self.fluxErrs[mask].value)
+        try:
+            popt, pcov = optimize.curve_fit(self.__line,
+                                            np.log10(self.wlngths[mask]),
+                                            np.log10(self.fluxes[mask].value),
+                                            nan_policy='omit')
+            bounds = Bounds(lb=(popt[0]-np.sqrt(pcov[0,0]),
+                                popt[1]-np.sqrt(pcov[1,1])),
+                            ub=(popt[0]+np.sqrt(pcov[0,0]),
+                                popt[1]+np.sqrt(pcov[1,1])))
+            
+            popt, pcov = optimize.curve_fit(self.__powerlaw,
+                                            self.wlngths[mask],
+                                            self.fluxes[mask].value,
+                                            nan_policy='omit',
+                                            bounds=bounds)#,
+                                            #sigma=self.fluxErrs[mask].value)
+        except:
+            if self.debug:
+                tqdm.write(f"Unable to compute alpha_{key}, fit not converging...")
+                
+            self.alpha[f"{key}"] = np.nan
+            self.intercept[f"{key}"] = np.nan
+            self.cls[key] = "not classified"
+            return self.alpha, self.intercept
+
         
         self.alpha[f"{key}"] = popt[0]
         self.intercept[f"{key}"] = popt[1]
