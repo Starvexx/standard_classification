@@ -63,8 +63,8 @@ class star:
         """
         self.__data = source
         self.srcID = self.__data["Internal_ID"]
-        self.ra = self.__data["RA"]
-        self.dec = self.__data["DE"]
+        self.ra = self.__data["RA"].astype(float)
+        self.dec = self.__data["DE"].astype(float)
         self.alpha = {}
         self.n = {}
         self.intercept = {}
@@ -94,9 +94,9 @@ class star:
 
 
         # Extract the columns holding the flux measurements (Jy) from the table.
-        self.fluxDens = np.array([col for col in self.__data[self.fluxNames].as_void()])
-        self.fluxDensErrs = np.array([col for col in self.__data[self.fluxErrNames].as_void()])
-        self.wlngths = np.array([col for col in self.__data[self.lambdaNames].as_void()])
+        self.fluxDens = np.array([col for col in self.__data[self.fluxNames].as_void()], dtype=float)
+        self.fluxDensErrs = np.array([col for col in self.__data[self.fluxErrNames].as_void()], dtype=float)
+        self.wlngths = np.array([col for col in self.__data[self.lambdaNames].as_void()], dtype=float)
 
         self.fluxDens[self.fluxDens == 0] = np.nan
         self.fluxDensErrs[self.fluxDensErrs == 0] = np.nan

@@ -27,6 +27,7 @@ build/
 **/*.fits
 
 **/classify_old_11th_of_June_2024.py
+**/classify_gabor.py
 
 
 # Allow
